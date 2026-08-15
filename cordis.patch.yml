@@ -1,8 +1,8 @@
-# dsh-skill-manager bundle patch: inserts the dual-face plugin row into the
+# dsh-extension-hub bundle patch: inserts the dual-face plugin row into the
 # web profile roster. The node half (exports ".") runs in the host process and
 # owns the skill filesystem operations, the plugin loader operations, and the
-# /api/dsh-skill-manager route family; the browser half (exports "./client")
-# registers the 「技能」 settings section and the 「插件管理」 plugins tab.
+# /api/dsh-extension-hub route family; the browser half (exports "./client")
+# registers the 「扩展管理」 settings section.
 - insert:
-    - id: skill-manager
-      name: 'dsh-skill-manager'
+    - id: extension-hub
+      name: 'dsh-extension-hub'

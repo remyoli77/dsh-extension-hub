@@ -1,10 +1,10 @@
-# dsh-skill-manager
+# dsh-extension-hub
 
 > DSH Web GUI「扩展中心」——技能与插件的一体化管理插件（dual-face，无需改动 dsh 源码）
 
-**仓库地址**：[GitHub](https://github.com/remyoli77/dsh-skill-manager) · [Gitee](https://gitee.com/remyoli/dsh-skill-manager)
+**仓库地址**：[GitHub](https://github.com/remyoli77/dsh-extension-hub) · [Gitee](https://gitee.com/remyoli/dsh-extension-hub)
 
-`dsh-skill-manager` 是 DeepSeek Harness Web 界面的一个扩展管理插件。它把 **技能（Skills）** 与 **插件（Plugins）**
+`dsh-extension-hub` 是 DeepSeek Harness Web 界面的一个扩展管理插件。它把 **技能（Skills）** 与 **插件（Plugins）**
 合并进同一个「扩展管理」面板，提供统一的查看、启动/停止、安装/卸载能力，并支持从 **GitHub / Gitee**
 搜索并一键安装新的技能或插件。所有操作均为**热插拔**，无需重启 dsh 进程。
 
@@ -22,7 +22,7 @@
   `disable-model-invocation` 开关；插件通过 Cordis Loader 运行时 API 立即生效。
 - **卸载** 按钮：技能删除 `~/.dsh/skills/` 下的 bundle；插件从运行时移除（用户安装的彻底移除，
   内置插件转为停用）。
-- 所有开关状态持久化到 `~/.dsh/dsh-skill-manager.json`，重启后自动恢复。
+- 所有开关状态持久化到 `~/.dsh/dsh-extension-hub.json`，重启后自动恢复。
 
 ### 3. 搜索栏 + GitHub / Gitee 远程搜索
 - **本地即时过滤**：输入关键词即可在已安装的技能与插件中筛选（名称/包名/简介）。
@@ -46,7 +46,7 @@
 - **核心保护**：`modules / connection / api-gateway / webserver / ui-settings / skill-manager`
   等 GUI 生存依赖标记「核心」，禁止停用/卸载，防止误操作把界面搞挂。
 - **容器保护**：根容器（`cordis:include`）与分组条目完全不出现在列表中，无法被管理。
-- **回环栅栏**：所有 `/api/dsh-skill-manager/*` 路由仅接受本机回环 + 同源请求。
+- **回环栅栏**：所有 `/api/dsh-extension-hub/*` 路由仅接受本机回环 + 同源请求。
 
 ---
 
@@ -55,14 +55,14 @@
 ### 方式一：链接到本地源码（开发/自用）
 
 ```bash
-dsh plugin --profile web add link:C:/path/to/dsh-skill-manager
+dsh plugin --profile web add link:C:/path/to/dsh-extension-hub
 dsh web   # 重启 web 进程
 ```
 
 ### 方式二：npm 包（发布后）
 
 ```bash
-dsh plugin --profile web add dsh-skill-manager
+dsh plugin --profile web add dsh-extension-hub
 dsh web
 ```
 
@@ -90,7 +90,7 @@ dsh web
 ```
 ┌──────────────────────────────┐        ┌──────────────────────────────┐
 │  browser half (lib/client.js) │  HTTP  │  host half (lib/index.js)     │
-│  settings.section 扩展管理     │ ─────▶ │  /api/dsh-skill-manager/*     │
+│  settings.section 扩展管理     │ ─────▶ │  /api/dsh-extension-hub/*     │
 │  React + ctx.slots / locale   │        │  ctx.loader 操作 / 文件系统    │
 │  搜索 UI / 一键安装按钮         │ ◀───── │  GitHub/Gitee 搜索 / 探测安装  │
 └──────────────────────────────┘        └──────────────────────────────┘
@@ -103,9 +103,9 @@ dsh web
 ### 目录结构
 
 ```
-dsh-skill-manager/
+dsh-extension-hub/
 ├── lib/
-│   ├── index.js        # host half（Node）：管理逻辑 + /api/dsh-skill-manager 路由族
+│   ├── index.js        # host half（Node）：管理逻辑 + /api/dsh-extension-hub 路由族
 │   └── client.js       # browser half：扩展管理设置分区（React）
 ├── cordis.patch.yml    # 组合补丁：插入 skill-manager 行
 ├── package.json        # npm 包 + dsh.bundle.patch + dsh.client 声明
@@ -118,7 +118,7 @@ dsh-skill-manager/
 | --- | --- |
 | 技能热插拔 | 改写 `SKILL.md` frontmatter；`dsh-skill-filesystem` watcher 实时感知，无需重启 |
 | 插件热插拔 | `ctx.loader.update/create/remove` 运行时即时生效 |
-| 持久化 | `~/.dsh/dsh-skill-manager.json`，boot 时由 host half 重放（容器/核心条目自动跳过） |
+| 持久化 | `~/.dsh/dsh-extension-hub.json`，boot 时由 host half 重放（容器/核心条目自动跳过） |
 | 远程安装探测 | 优先找 `SKILL.md`（当技能）；其次找 `package.json` 的 `dsh.bundle`（当插件） |
 | 类型安全 | 技能名强制 kebab-case 校验，杜绝路径穿越 |
 

@@ -2,6 +2,8 @@
 
 > DSH Web GUI「扩展中心」——技能与插件的一体化管理插件（dual-face，无需改动 dsh 源码）
 
+**仓库地址**：[GitHub](https://github.com/remyoli77/dsh-skill-manager) · [Gitee](https://gitee.com/remyoli/dsh-skill-manager)
+
 `dsh-skill-manager` 是 DeepSeek Harness Web 界面的一个扩展管理插件。它把 **技能（Skills）** 与 **插件（Plugins）**
 合并进同一个「扩展管理」面板，提供统一的查看、启动/停止、安装/卸载能力，并支持从 **GitHub / Gitee**
 搜索并一键安装新的技能或插件。所有操作均为**热插拔**，无需重启 dsh 进程。

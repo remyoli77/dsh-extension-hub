@@ -116,15 +116,49 @@ function Save-WatchdogState($s) {
   } catch { }
 }
 
-# ── 告警：系统弹窗 + 响铃 + Webhook ──────────────────────────────────────────
+# ── 主题识别：读取 DSH 主题偏好（system 时回退 Windows 系统主题）──────────────
+function Get-ThemePreference {
+  try {
+    $yamlPath = Join-Path $env:USERPROFILE '.dsh\settings.yaml'
+    if (Test-Path $yamlPath) {
+      $yaml = Get-Content $yamlPath -Raw -ErrorAction Stop
+      if ($yaml -match 'preference:\s*(\S+)') {
+        $pref = $Matches[1].ToLower()
+        if ($pref -eq 'light') { return 'light' }
+        if ($pref -eq 'dark') { return 'dark' }
+      }
+    }
+  } catch { }
+  # system / 未知 → 跟随 Windows 应用主题
+  try {
+    $v = Get-ItemPropertyValue -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -ErrorAction Stop
+    if ($v -eq 0) { return 'dark' }
+    return 'light'
+  } catch { return 'dark' }
+}
+
+# ── 告警：静默角落 toast + 柔和响铃 + Webhook ───────────────────────────────
 function Send-Alert([string]$title, [string]$message) {
   Write-Log "告警: $title - $message"
   if (-not $NoPopup) {
     try {
-      Start-Process -FilePath 'msg.exe' -ArgumentList @('*', "$title : $message") -WindowStyle Hidden -ErrorAction Stop
+      $toast = Join-Path $PSScriptRoot 'dsh-toast.ps1'
+      if (Test-Path $toast) {
+        $theme = Get-ThemePreference
+        $payload = @{
+          title       = $title
+          message     = $message
+          theme       = $theme
+          durationSec = 8
+          corner      = 4
+        } | ConvertTo-Json
+        $payloadFile = Join-Path $env:TEMP ('dsh-toast-' + [guid]::NewGuid().ToString('N') + '.json')
+        [System.IO.File]::WriteAllText($payloadFile, $payload, [System.Text.UTF8Encoding]::new($false))
+        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $toast, '-PayloadFile', $payloadFile) -WindowStyle Hidden -ErrorAction Stop
+      }
     } catch { }
   }
-  try { [console]::beep(1200, 400) } catch { }
+  try { [console]::beep(880, 180); Start-Sleep -Milliseconds 120; [console]::beep(660, 180) } catch { }
   if ($WebhookUrl) {
     try {
       $body = @{ event = 'dsh-watchdog-alert'; title = $title; message = $message; time = (Get-Date).ToString('o'); port = $Port } | ConvertTo-Json

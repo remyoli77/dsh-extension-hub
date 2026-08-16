@@ -90,12 +90,12 @@ $cvt = { param($hex) [System.Drawing.ColorTranslator]::FromHtml($hex) }
 
 $form = New-Object ToastForm
 $form.BackColor = (& $cvt $bg)
-$form.ClientSize = New-Object System.Drawing.Size(430, 96)
+$form.ClientSize = New-Object System.Drawing.Size(432, 152)
 
-# ── 左侧：鲸鱼娘 GIF 动画 ────────────────────────────────────────────────────
+# ── 左侧：鲸鱼娘立绘（全身，透明背景）────────────────────────────────────────
 $pic = New-Object System.Windows.Forms.PictureBox
-$pic.Location = New-Object System.Drawing.Point(12, 12)
-$pic.Size = New-Object System.Drawing.Size(72, 72)
+$pic.Location = New-Object System.Drawing.Point(10, 8)
+$pic.Size = New-Object System.Drawing.Size(104, 136)
 $pic.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
 if ($image -and (Test-Path $image)) {
   try { $pic.Image = [System.Drawing.Image]::FromFile($image) } catch { }
@@ -108,7 +108,7 @@ $lblTitle.Text = $title
 $lblTitle.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 10, [System.Drawing.FontStyle]::Bold)
 $lblTitle.ForeColor = (& $cvt $fg)
 $lblTitle.BackColor = (& $cvt $bg)
-$lblTitle.Location = New-Object System.Drawing.Point(98, 14)
+$lblTitle.Location = New-Object System.Drawing.Point(126, 16)
 $lblTitle.AutoSize = $true
 $form.Controls.Add($lblTitle) | Out-Null
 
@@ -118,8 +118,8 @@ if ($message) {
   $lblMsg.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 9)
   $lblMsg.ForeColor = (& $cvt $muted)
   $lblMsg.BackColor = (& $cvt $bg)
-  $lblMsg.Location = New-Object System.Drawing.Point(98, 42)
-  $lblMsg.MaximumSize = New-Object System.Drawing.Size(318, 46)
+  $lblMsg.Location = New-Object System.Drawing.Point(126, 46)
+  $lblMsg.MaximumSize = New-Object System.Drawing.Size(292, 88)
   $lblMsg.AutoSize = $true
   $lblMsg.AutoEllipsis = $true
   $form.Controls.Add($lblMsg) | Out-Null

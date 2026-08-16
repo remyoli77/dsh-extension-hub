@@ -163,6 +163,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.3**（女仆鲸鱼娘立绘）
+  - 告警 toast 改用 **女仆工坊皮肤（ui-skin-maid-atelier）的鲸鱼娘立绘**（透明背景 PNG，内置 tools/assets/，自动定位，可 -ToastImage 自定义）
+
 - **0.2.2**（鲸鱼娘告警）
   - 告警 toast 左侧加入 **鲸鱼娘 GIF 动画**（取自 dsh-pet 桌面宠物资产，自动定位，可 -ToastImage 自定义）
   - WinForms 实现，GIF 流畅动画、圆角、不抢焦点

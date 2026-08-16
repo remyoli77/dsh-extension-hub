@@ -58,7 +58,9 @@ param(
   # 只监控不重启（用于测试）
   [switch]$MonitorOnly,
   # 进程命令行匹配正则（确认监听端口的进程是 dsh web；兼容生产 dsh 与 tsx 开发模式）
-  [string]$ProcessMatch = 'dsh|tsx|bin\.ts'
+  [string]$ProcessMatch = 'dsh|tsx|bin\.ts',
+  # 告警 toast 的鲸鱼娘图片（留空 = 自动从 dsh-pet 资产定位）
+  [string]$ToastImage = ''
 )
 
 $ErrorActionPreference = 'Continue'
@@ -137,7 +139,27 @@ function Get-ThemePreference {
   } catch { return 'dark' }
 }
 
-# ── 告警：静默角落 toast + 柔和响铃 + Webhook ───────────────────────────────
+# ── 鲸鱼娘图片自动定位（dsh-pet 桌面宠物的资产）──────────────────────────────
+function Get-WhaleImage {
+  if ($ToastImage -and (Test-Path $ToastImage)) { return $ToastImage }
+  $roots = @()
+  $profiles = Join-Path $env:USERPROFILE '.dsh\profiles'
+  if (Test-Path $profiles) {
+    $roots += Get-ChildItem $profiles -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'node_modules\@linxin666\dsh-pet\assets\whale\previews' }
+  }
+  foreach ($root in $roots) {
+    if (-not (Test-Path $root)) { continue }
+    foreach ($prefer in @('waving.gif', 'idle.gif', 'review.gif')) {
+      $cand = Join-Path $root $prefer
+      if (Test-Path $cand) { return $cand }
+    }
+    $first = Get-ChildItem $root -Filter '*.gif' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($first) { return $first.FullName }
+  }
+  return ''
+}
+
+# ── 告警：静默角落 toast（鲸鱼娘）+ 柔和响铃 + Webhook ───────────────────────
 function Send-Alert([string]$title, [string]$message) {
   Write-Log "告警: $title - $message"
   if (-not $NoPopup) {
@@ -149,6 +171,7 @@ function Send-Alert([string]$title, [string]$message) {
           title       = $title
           message     = $message
           theme       = $theme
+          image       = Get-WhaleImage
           durationSec = 8
           corner      = 4
         } | ConvertTo-Json

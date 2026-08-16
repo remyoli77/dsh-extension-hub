@@ -139,9 +139,15 @@ function Get-ThemePreference {
   } catch { return 'dark' }
 }
 
-# ── 鲸鱼娘图片自动定位（dsh-pet 桌面宠物的资产）──────────────────────────────
+# ── 鲸鱼娘图片自动定位（优先女仆工坊皮肤立绘，dsh-pet 动画兜底）──────────────
 function Get-WhaleImage {
   if ($ToastImage -and (Test-Path $ToastImage)) { return $ToastImage }
+  # 1) 插件自带立绘（tools/assets/，透明背景 PNG）
+  foreach ($name in @('maid-right.png', 'maid-left.png')) {
+    $cand = Join-Path $PSScriptRoot "assets\$name"
+    if (Test-Path $cand) { return $cand }
+  }
+  # 2) dsh-pet 桌面宠物动画兜底
   $roots = @()
   $profiles = Join-Path $env:USERPROFILE '.dsh\profiles'
   if (Test-Path $profiles) {

@@ -111,7 +111,8 @@ function Read-WatchdogState {
 
 function Save-WatchdogState($s) {
   try {
-    $s | ConvertTo-Json -Depth 6 | Set-Content $StateFile -Encoding UTF8
+    $json = $s | ConvertTo-Json -Depth 6
+    [System.IO.File]::WriteAllText($StateFile, $json, [System.Text.UTF8Encoding]::new($false))
   } catch { }
 }
 
@@ -265,6 +266,7 @@ function Stop-Dsh([int]$procId) {
 
 # ── 启动 ─────────────────────────────────────────────────────────────────────
 $state = Read-WatchdogState
+Save-WatchdogState $state   # 启动即落盘一次，界面可立即读到统计
 $script:stopRestarting = $false
 
 Write-Log "=============================================================="

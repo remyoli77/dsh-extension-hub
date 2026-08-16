@@ -1,7 +1,7 @@
 {
   "name": "dsh-extension-hub",
   "description": "DSH Web GUI 扩展中心：技能与插件一体化管理（合并标注、一键启动/停止/卸载、GitHub/Gitee 远程搜索与一键安装、全量中文功能简介）。Hot-pluggable — 接入 web profile 后无需改 dsh 源码。",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "type": "module",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

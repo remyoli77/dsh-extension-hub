@@ -291,7 +291,9 @@ function Register-Restart([string]$reason) {
   }
 }
 
-# 重启 dsh web（detached + hidden；优先沿用原启动命令）
+# 重启 dsh web（hidden；优先沿用原启动命令）
+# 启动命令的 stdout/stderr 重定向到 ~/.dsh/dsh-watchdog-restart.{out,err}.log，
+# 重启失败时（进程没起来/立刻崩溃）可在 err log 里看到 node 的真实报错。
 function Restart-Dsh {
   if ($MonitorOnly) {
     $spec = $script:RestartSpec
@@ -299,17 +301,20 @@ function Restart-Dsh {
     Write-Log "[MonitorOnly] 将重启: $cmd（已跳过）"
     return
   }
+  $outLog = Join-Path $env:USERPROFILE '.dsh\dsh-watchdog-restart.out.log'
+  $errLog = Join-Path $env:USERPROFILE '.dsh\dsh-watchdog-restart.err.log'
+  Remove-Item $outLog, $errLog -Force -ErrorAction SilentlyContinue
   try {
     $spec = $script:RestartSpec
     if ($spec -and $spec.Command) {
       Write-Log "重启中(沿用原命令): $($spec.Command)  [cwd=$($spec.WorkingDirectory)]"
-      Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', $spec.Command) -WorkingDirectory $spec.WorkingDirectory -WindowStyle Hidden -ErrorAction Stop
+      Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', $spec.Command) -WorkingDirectory $spec.WorkingDirectory -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -ErrorAction Stop
     } elseif ($RestartCommand) {
       Write-Log "重启中: $RestartCommand"
-      Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', $RestartCommand) -WindowStyle Hidden -ErrorAction Stop
+      Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', $RestartCommand) -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -ErrorAction Stop
     } else {
       Write-Log '重启中(默认): dsh web'
-      Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', 'dsh web') -WindowStyle Hidden -ErrorAction Stop
+      Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', 'dsh web') -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -ErrorAction Stop
     }
     Write-Log '重启命令已启动'
   } catch {

@@ -60,6 +60,18 @@
 - **容器保护**：根容器（`cordis:include`）与分组条目完全不出现在列表中，无法被管理。
 - **回环栅栏**：所有 `/api/dsh-extension-hub/*` 路由仅接受本机回环 + 同源请求。
 
+### 7. 依赖一致性校验（依赖体检）
+- **防 Symbol/instanceof 分裂**：pnpm 依赖提升可能把 `@deepseek-ai/*` 核心包复制成
+  profile 层独立副本，导致跨副本 Symbol 键/instanceof 失效（典型症状：agent 循环
+  `Cannot read properties of undefined (reading 'prepare')`）。每次**安装插件后**、
+  **启动时**及**手动触发**都会扫描 profile 层与权威层重复的核心包，版本一致即自动
+  备份并统一为 symlink，冲突版本仅告警不处理。
+- **防 peerDeps 解析失败**：安装插件时校验其 peerDependencies 能否从自身位置解析，
+  提前暴露 `ERR_MODULE_NOT_FOUND`（如 `dsh-home-paths` 缺失）类问题。
+- 校验记录写入 `~/.dsh/dsh-extension-hub.json` 的 `verifyLog` 字段；设置面板「扩展管理」内置
+  **依赖体检**卡片（含最近一次体检记录与结果明细），点「立即体检」手动触发全量扫描并自动修复；
+  也可直接调用 `POST /api/dsh-extension-hub/plugins/verify`（历史见 `GET .../plugins/verify-log`）。
+
 ---
 
 ## 📦 安装

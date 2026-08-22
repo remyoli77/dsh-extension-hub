@@ -175,6 +175,12 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.6**（一键安装修复：免 git CLI + 注册持久化 + 按钮进度条）
+  - 修复：**一键安装插件必失败**——后端用 `pnpm add git+https://…`，pnpm 解析 git 依赖需要 git CLI，但 HarmonyOS 本机无 git → 每次安装报 `git executable not found`。改为 **tarball URL 安装**（GitHub codeload / Gitee archive 的 `.tar.gz`），无需 git，实测 6-8 秒装好
+  - 修复：**安装成功后重启丢失**——安装只写 node_modules 没注册 loader entry，DSH 重启重写 profile package.json 后插件像没装过。补上 `installPlugin` 注册 + `installedPlugins` 持久化，重启自动恢复
+  - 新增：**一键安装按钮 → 动画进度条**（跟随任务状态：安装中滑动光条 / 失败显示原因+重试 / 成功显示「已安装」徽标）
+  - 兼容：更新检测与更新任务识别 tarball URL 依赖（不再误当 npm 包走 registry）
+
 - **0.2.5**（市场页修复 + 更新任务增强）
   - 修复：**「推荐 / 新上线 / 诊断」三个标签内容消失**——任务列表块的三元闭合括号位置错误，把三个标签 pane 一并包进了「有更新任务才显示」的条件里；任务列表为空时三个标签全部不渲染。已把任务块独立闭合，三个标签恢复为市场页常驻内容
   - 修复：**一键安装无反应**——后端安装仍用 `spawn('dsh')`（dsh web 进程 PATH 无 dsh 命令 → ENOENT 静默失败），统一改为 node 绝对路径 + pnpm（与更新引擎同款）

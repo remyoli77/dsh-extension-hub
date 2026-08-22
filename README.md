@@ -175,6 +175,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.7**（停用持久化修复：boot override 重试）
+  - 修复：**「停用/卸载」的插件重启后失效**——`applyBootOverrides` 仅在启动后立即执行一次，而 bundle 条目（如设置里的「插件」分区 `ui-settings-plugins`）装配更晚，override 因 entry 尚未出现被跳过，导致重启后停用状态丢失。改为**轮询重试**（每 500ms 检查直到所有 override 目标 entry 就绪，最长约 10s），重启后停用/启用的持久化决策真正生效
+
 - **0.2.6**（一键安装修复：免 git CLI + 注册持久化 + 按钮进度条）
   - 修复：**一键安装插件必失败**——后端用 `pnpm add git+https://…`，pnpm 解析 git 依赖需要 git CLI，但 HarmonyOS 本机无 git → 每次安装报 `git executable not found`。改为 **tarball URL 安装**（GitHub codeload / Gitee archive 的 `.tar.gz`），无需 git，实测 6-8 秒装好
   - 修复：**安装成功后重启丢失**——安装只写 node_modules 没注册 loader entry，DSH 重启重写 profile package.json 后插件像没装过。补上 `installPlugin` 注册 + `installedPlugins` 持久化，重启自动恢复

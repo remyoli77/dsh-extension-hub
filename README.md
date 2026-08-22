@@ -175,6 +175,11 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.8**（插件仓库子目录探测：支持 dsh-pet 等）
+  - 修复：**一键安装报「仓库根目录未找到 SKILL.md / dsh.bundle」**——dsh-market 仓库常把插件包放在**子目录**（如 `dsh-pet/dsh-pet/package.json`），旧探测只查根目录 package.json，导致误报无法识别。现有 **根目录 + 顶层子目录两段探测**，找到含 `dsh.bundle` 声明的 package.json 即安装
+  - 修复：子目录插件安装链路——统一改为**下载 tarball → 解压 → 定位插件目录 → `pnpm add file:<dir>`**（无需 git，根/子目录布局皆可），实测 dsh-pet 2.4 秒装好
+  - 兼容：安装后仍保留 loader entry 注册 + `installedPlugins` 持久化，重启自动恢复
+
 - **0.2.7**（停用持久化修复：boot override 重试）
   - 修复：**「停用/卸载」的插件重启后失效**——`applyBootOverrides` 仅在启动后立即执行一次，而 bundle 条目（如设置里的「插件」分区 `ui-settings-plugins`）装配更晚，override 因 entry 尚未出现被跳过，导致重启后停用状态丢失。改为**轮询重试**（每 500ms 检查直到所有 override 目标 entry 就绪，最长约 10s），重启后停用/启用的持久化决策真正生效
 

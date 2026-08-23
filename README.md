@@ -175,6 +175,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.12**（安装期间抑制 watchdog 自动重载）
+  - 修复：**插件装到 node_modules 但 package.json 依赖丢失**——安装触发 DSH watchdog 的「profile 变化自动重载」（轮询 profile，变化后 8s 平滑重启），而 pnpm 改 profile 文件恰好触发，watchdog 重启 DSH 时 SIGTERM 中断了 pnpm 写 package.json 的收尾，导致依赖没写入、重启后插件像没装过。修复：安装 pnpm **前创建 `.dsh-ext-installing` 标记文件**，watchdog 轮询到该文件就**跳过自动重载**，pnpm 完成后删除标记——安装期间不再被打断
+
 - **0.2.11**（插件安装 npm 优先）
   - 优化：**仓库插件安装优先走 npm registry**——探测到 `dsh.bundle` 后，先在 npm 上查该包名是否存在；若已发布，用 `pnpm add <name>@latest` 直接装（快、稳，不受慢速 GitHub codeload 大仓库下载影响，如 dsh-pet 的 103MB 仓库源码）；npm 上没发布才回退到仓库 tarball 下载
 

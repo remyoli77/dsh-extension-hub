@@ -291,6 +291,11 @@ function watchProfileLoop() {
       if (now === state.lastProfileSnapshot) return
       state.lastProfileSnapshot = now
       if (reloadTimer) return
+      // While the extension hub is installing/updating a plugin it creates a
+      // marker file under the profile; the pnpm run mutates profile files and
+      // an auto-reload here would SIGTERM dsh mid-install, dropping the
+      // package.json dependency write. Skip reloading until the marker is gone.
+      if (existsSync(join(PROFILE_DIR, '.dsh-ext-installing'))) return
       log('检测到 profile 目录变化（插件安装/卸载/配置修改）')
       reloadTimer = setTimeout(async () => {
         reloadTimer = null

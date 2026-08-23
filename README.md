@@ -175,6 +175,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.10**（安装下载流式化 + 进度）
+  - 修复：**大仓库插件安装卡在下载阶段**——`downloadAndLocatePlugin` 用 `arrayBuffer()` 一次性读入内存（dsh-pet 仓库 103MB），且 60s 超时偏短、无进度反馈。改为**流式写入磁盘**（不占内存，进度写入任务输出）+ 超时放宽到 180s + 下载失败自动清理临时文件
+
 - **0.2.9**（pnpm 安装绕过 safe-delete 批删护栏）
   - 修复：**插件安装到一半失败（safe-delete 批量删除需确认）**——dsh web 进程继承了 WorkBuddy/claude 的安全护栏环境变量（`CODEBUDDY_SESSION_ID`、`CLAUDE_SESSION_ID`、`CODEBUDDY_SAFE_DELETE_BULK_GUARD` 等），`pnpm add` 在 profile node_modules 删/换大量文件时触发「批量删除>50 需确认」拦截，安装中断。修复：spawn pnpm 前**剔除全部安全护栏相关环境变量**，让 rm/unlink 走零开销直通分支，安装干净完成
 

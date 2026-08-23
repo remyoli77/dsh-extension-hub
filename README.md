@@ -175,6 +175,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.14**（插件热重载自身：改代码不再需要重启 DSH）
+  - 新增：**`POST /api/dsh-extension-hub/reload-self`**——用 cache-busting 的 ESM `import()`（URL 加 `?t=<now>`，Node 会重新执行模块顶层代码）重新加载本插件的 host 模块，并让 cordis loader 重建该 entry 的 fiber。改完 `lib/index.js` 后调用一次即可热生效，**无需重启 DSH 进程**（后续所有修复都通过这个端点落地）
+
 - **0.2.13**（pnpm 安装加 --ignore-scripts）
   - 修复：**安装部分插件失败（原生依赖 postinstall 编译失败）**——`pnpm add` 会重建整个依赖树，把 profile 里已存在的原生包（cloudflared、node-pty 等）重新跑一遍 install 脚本，而 openharmony 平台无对应工具链（`Unsupported platform: openharmony`、gyp 失败）→ 整条命令 exit 1、回滚。修复：安装脚本加 **`--ignore-scripts`**（这些包此前已装好无需重建），实测跳过编译、6.6s 完成
 

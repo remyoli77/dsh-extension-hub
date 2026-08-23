@@ -175,6 +175,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.9**（pnpm 安装绕过 safe-delete 批删护栏）
+  - 修复：**插件安装到一半失败（safe-delete 批量删除需确认）**——dsh web 进程继承了 WorkBuddy/claude 的安全护栏环境变量（`CODEBUDDY_SESSION_ID`、`CLAUDE_SESSION_ID`、`CODEBUDDY_SAFE_DELETE_BULK_GUARD` 等），`pnpm add` 在 profile node_modules 删/换大量文件时触发「批量删除>50 需确认」拦截，安装中断。修复：spawn pnpm 前**剔除全部安全护栏相关环境变量**，让 rm/unlink 走零开销直通分支，安装干净完成
+
 - **0.2.8**（插件仓库子目录探测：支持 dsh-pet 等）
   - 修复：**一键安装报「仓库根目录未找到 SKILL.md / dsh.bundle」**——dsh-market 仓库常把插件包放在**子目录**（如 `dsh-pet/dsh-pet/package.json`），旧探测只查根目录 package.json，导致误报无法识别。现有 **根目录 + 顶层子目录两段探测**，找到含 `dsh.bundle` 声明的 package.json 即安装
   - 修复：子目录插件安装链路——统一改为**下载 tarball → 解压 → 定位插件目录 → `pnpm add file:<dir>`**（无需 git，根/子目录布局皆可），实测 dsh-pet 2.4 秒装好

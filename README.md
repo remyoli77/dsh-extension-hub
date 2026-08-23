@@ -175,6 +175,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.11**（插件安装 npm 优先）
+  - 优化：**仓库插件安装优先走 npm registry**——探测到 `dsh.bundle` 后，先在 npm 上查该包名是否存在；若已发布，用 `pnpm add <name>@latest` 直接装（快、稳，不受慢速 GitHub codeload 大仓库下载影响，如 dsh-pet 的 103MB 仓库源码）；npm 上没发布才回退到仓库 tarball 下载
+
 - **0.2.10**（安装下载流式化 + 进度）
   - 修复：**大仓库插件安装卡在下载阶段**——`downloadAndLocatePlugin` 用 `arrayBuffer()` 一次性读入内存（dsh-pet 仓库 103MB），且 60s 超时偏短、无进度反馈。改为**流式写入磁盘**（不占内存，进度写入任务输出）+ 超时放宽到 180s + 下载失败自动清理临时文件
 

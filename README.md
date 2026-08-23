@@ -175,6 +175,9 @@ dsh-extension-hub/
 
 ## 📝 更新日志
 
+- **0.2.13**（pnpm 安装加 --ignore-scripts）
+  - 修复：**安装部分插件失败（原生依赖 postinstall 编译失败）**——`pnpm add` 会重建整个依赖树，把 profile 里已存在的原生包（cloudflared、node-pty 等）重新跑一遍 install 脚本，而 openharmony 平台无对应工具链（`Unsupported platform: openharmony`、gyp 失败）→ 整条命令 exit 1、回滚。修复：安装脚本加 **`--ignore-scripts`**（这些包此前已装好无需重建），实测跳过编译、6.6s 完成
+
 - **0.2.12**（安装期间抑制 watchdog 自动重载）
   - 修复：**插件装到 node_modules 但 package.json 依赖丢失**——安装触发 DSH watchdog 的「profile 变化自动重载」（轮询 profile，变化后 8s 平滑重启），而 pnpm 改 profile 文件恰好触发，watchdog 重启 DSH 时 SIGTERM 中断了 pnpm 写 package.json 的收尾，导致依赖没写入、重启后插件像没装过。修复：安装 pnpm **前创建 `.dsh-ext-installing` 标记文件**，watchdog 轮询到该文件就**跳过自动重载**，pnpm 完成后删除标记——安装期间不再被打断
 

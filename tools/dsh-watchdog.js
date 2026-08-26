@@ -29,8 +29,8 @@
  *   - stopped by:  SIGTERM/SIGINT (from stopWatchdog → process.kill)
  *   - exit codes:  1 = no launch info; 0 = graceful shutdown
  */
-import { spawn } from 'node:child_process'
-import { appendFileSync, readFileSync, writeFileSync, readdirSync, openSync, closeSync, statSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { appendFileSync, readFileSync, writeFileSync, readdirSync, openSync, closeSync, statSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:http'
@@ -63,6 +63,24 @@ const state = {
 
 let restarting = false
 let reloadTimer = null
+
+// ── crash circuit breaker: pause auto-restart when dsh keeps crashing in a loop ──
+const CIRCUIT_WINDOW = 60_000   // 统计窗口
+const CIRCUIT_MAX = 5           // 窗口内最多自动重启次数
+const CIRCUIT_COOLDOWN = 120_000
+const crashTimes = []
+function circuitBreaker(reason) {
+  if (!reason.includes('崩溃')) return true // 手动/插件变化重启不受熔断限制
+  const now = Date.now()
+  crashTimes.push(now)
+  while (crashTimes.length && now - crashTimes[0] > CIRCUIT_WINDOW) crashTimes.shift()
+  if (crashTimes.length > CIRCUIT_MAX) {
+    const wait = CIRCUIT_COOLDOWN - (now - crashTimes[0])
+    log(`!! 崩溃熔断：60s 内自动重启 ${crashTimes.length} 次，暂停自动重启 ${Math.ceil(Math.max(wait, 1) / 1000)}s 冷却`)
+    return false
+  }
+  return true
+}
 
 function ts() {
   return new Date().toISOString()
@@ -164,8 +182,35 @@ async function stopDsh() {
   state.dshPid = null
 }
 
+/**
+ * Run the profile's broken-plugin disabler synchronously before every dsh launch.
+ * Strips known crash-causing plugins (skin-center / task-board) from node_modules
+ * and their deps declaration, and re-comments their cordis.patch.yml entries.
+ * HarmonyOS patch — extension-hub upgrades restore the watchdog, keep this hook.
+ */
+function runPreLaunchGuard() {
+  const script = join(PROFILE_DIR, 'disable-broken-plugins.js')
+  if (!existsSync(script)) return
+  try {
+    const r = spawnSync(process.execPath, [script], {
+      cwd: PROFILE_DIR,
+      timeout: 15_000,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    if (r.status !== 0) {
+      log(`pre-launch guard: disable-broken-plugins.js exit ${r.status}: ${String(r.stderr).trim().slice(0, 200)}`)
+    }
+  } catch (e) {
+    log(`pre-launch guard failed: ${e.message}`)
+  }
+}
+
 /** Spawn a fresh dsh using the recorded launch info. */
 function spawnDsh() {
+  // Pre-launch hygiene: run the broken-plugin disabler (idempotent) so that any
+  // resurrected crash-causing plugin (skin-center / task-board) is stripped from
+  // the profile before dsh boots. Never blocks a launch on failure.
+  runPreLaunchGuard()
   const { nodePath, execArgv, argv, cwd, env } = state.launch
   const fullArgv = [...(execArgv || []), ...argv]
   log(`restarting dsh: ${nodePath} ${fullArgv.join(' ')} (cwd=${cwd})`)
@@ -193,6 +238,7 @@ function spawnDsh() {
  */
 async function safeRestart(reason) {
   if (restarting) return { ok: false, error: '已有一次重启正在进行中' }
+  if (!circuitBreaker(reason)) return { ok: false, error: '崩溃熔断冷却中' }
   restarting = true
   log(`>>> 平滑重启（原因: ${reason}）`)
   try {
@@ -245,6 +291,11 @@ function watchProfileLoop() {
       if (now === state.lastProfileSnapshot) return
       state.lastProfileSnapshot = now
       if (reloadTimer) return
+      // While the extension hub is installing/updating a plugin it creates a
+      // marker file under the profile; the pnpm run mutates profile files and
+      // an auto-reload here would SIGTERM dsh mid-install, dropping the
+      // package.json dependency write. Skip reloading until the marker is gone.
+      if (existsSync(join(PROFILE_DIR, '.dsh-ext-installing'))) return
       log('检测到 profile 目录变化（插件安装/卸载/配置修改）')
       reloadTimer = setTimeout(async () => {
         reloadTimer = null
@@ -268,6 +319,115 @@ function sendJson(res, code, obj) {
   res.end(body)
 }
 
+function sendHtml(res, code, html) {
+  res.writeHead(code, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store',
+  })
+  res.end(html)
+}
+
+// ============ dashboard / health / env / plugins helpers ============
+
+const DASHBOARD_FILE = join(DSH_HOME, 'dashboard.html')
+
+function getNodeVersion() {
+  try { return readFileSync(join(homedir(), 'dsh-install', 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8') } catch { return '{}' }
+}
+
+async function getHealth() {
+  const webOk = await isAlive()
+  const pids = findDshPids()
+  const checks = [
+    { name: 'dsh Web 端口', key: 'port_3080', ok: webOk, detail: `http://127.0.0.1:${PORT}` },
+    { name: 'watchdog 端口 3090', key: 'port_3090', ok: true, detail: `http://127.0.0.1:${CTRL_PORT}` },
+    { name: 'dsh 进程', key: 'dsh_proc', ok: pids.length > 0, detail: pids.length ? `PID ${pids.join(', ')}` : '未找到进程' },
+    { name: 'watchdog 进程', key: 'watchdog_proc', ok: true, detail: `PID ${process.pid}` },
+    { name: '状态文件', key: 'state_file', ok: existsSync(STATE_FILE), detail: STATE_FILE },
+    { name: 'dsh 启动日志', key: 'stdout_log', ok: existsSync(DSH_STDOUT), detail: DSH_STDOUT },
+    { name: 'profile 配置', key: 'profile_pkg', ok: existsSync(join(PROFILE_DIR, 'package.json')), detail: join(PROFILE_DIR, 'package.json') },
+    { name: 'dsh 核心包', key: 'dsh_core', ok: existsSync(join(homedir(), 'dsh-install', 'node_modules', '@deepseek-ai', 'dsh')), detail: '~/dsh-install/@deepseek-ai/dsh' },
+    { name: 'dsh-web-ui-all', key: 'webui_all', ok: existsSync(join(PROFILE_DIR, 'node_modules', '@linxin666', 'dsh-web-ui-all')), detail: '@linxin666/dsh-web-ui-all' },
+  ]
+  return { ok: checks.every((c) => c.ok), checks, webOk, dshPids: pids }
+}
+
+function getEnvInfo() {
+  let dshVersion = null
+  let webuiVersion = null
+  try { dshVersion = JSON.parse(getNodeVersion()).version || null } catch {}
+  try {
+    webuiVersion = JSON.parse(readFileSync(join(PROFILE_DIR, 'node_modules', '@linxin666', 'dsh-web-ui-all', 'package.json'), 'utf8')).version || null
+  } catch {}
+  return {
+    node: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    dshHome: DSH_HOME,
+    profileDir: PROFILE_DIR,
+    dshVersion,
+    webuiVersion,
+    watchdogPid: process.pid,
+    watchdogStart: state.watchdogStart,
+    uptimeSec: Math.round(process.uptime()),
+    mem: { rss: process.memoryUsage().rss, heap: process.memoryUsage().heapUsed },
+  }
+}
+
+function getPlugins() {
+  const list = []
+  const nm = join(PROFILE_DIR, 'node_modules')
+  const scan = (dir, scope) => {
+    try {
+      for (const entry of readdirSync(dir).sort()) {
+        if (entry.startsWith('.')) continue
+        const pkgDir = join(dir, entry)
+        const pkgFile = join(pkgDir, 'package.json')
+        if (!existsSync(pkgFile)) continue
+        try {
+          const pkg = JSON.parse(readFileSync(pkgFile, 'utf8'))
+          const name = scope ? `${scope}/${entry}` : entry
+          const isBundle = !!(pkg.dsh && pkg.dsh.bundle)
+          const isPlugin = isBundle || /^dsh[-_]/.test(entry) || /^@/.test(scope || '')
+          if (isPlugin || isBundle) {
+            list.push({ name, version: pkg.version || null, bundle: isBundle })
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+  scan(nm, null)
+  const linxin = join(nm, '@linxin666')
+  if (existsSync(linxin)) scan(linxin, '@linxin666')
+  const deepseek = join(nm, '@deepseek-ai')
+  if (existsSync(deepseek)) scan(deepseek, '@deepseek-ai')
+  return list
+}
+
+// 被禁用的 entry id（HarmonyOS 上会导致 dsh 崩溃，已在 cordis.patch.yml 注释）
+const DISABLED_ENTRY_IDS = new Set(['web-ui-skin-center', 'web-ui-task-board'])
+
+/** Start dsh only if it is not already running (no kill). */
+async function startDshIfDown() {
+  if (restarting) return { ok: false, error: '已有一次重启正在进行中' }
+  if (await isAlive()) return { ok: true, message: 'dsh 已在运行', already: true }
+  if (findDshPids().length) {
+    log('发现 dsh 进程但端口未就绪——先清理再启动')
+    await stopDsh()
+  }
+  spawnDsh()
+  state.restartCount += 1
+  saveState()
+  const up = await waitReady(START_TIMEOUT)
+  if (up) {
+    log('✓ dsh 启动成功')
+    return { ok: true, message: 'dsh 启动成功' }
+  }
+  log('✗ dsh 启动后未就绪')
+  return { ok: false, error: '启动后未就绪，watchdog 将继续重试' }
+}
+
 function startControlServer() {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
@@ -281,20 +441,46 @@ function startControlServer() {
           pluginReloads: state.pluginReloads,
           restartCount: state.restartCount,
           dshUrl: `http://127.0.0.1:${PORT}`,
+          watchdogPid: process.pid,
+          watchdogStart: state.watchdogStart,
+          uptimeSec: Math.round(process.uptime()),
         })
       } else if (url.pathname === '/restart' || url.pathname === '/reload') {
         const reason = url.pathname === '/reload' ? '手动热重载' : '手动重启'
         const r = await safeRestart(reason)
         if (r.ok && url.pathname === '/reload') state.pluginReloads += 1
         sendJson(res, r.ok ? 200 : 503, r.ok ? { ok: true, message: '重启完成' } : r)
+      } else if (url.pathname === '/start') {
+        const r = await startDshIfDown()
+        sendJson(res, r.ok ? 200 : 503, r)
       } else if (url.pathname === '/logs') {
         let lines = []
         try {
-          lines = readFileSync(LOG_FILE, 'utf8').trim().split('\n').slice(-40)
+          lines = readFileSync(LOG_FILE, 'utf8').trim().split('\n')
         } catch { /* no log yet */ }
-        sendJson(res, 200, { logs: lines })
+        const n = Math.min(Math.max(Number(url.searchParams.get('n')) || 40, 1), 2000)
+        const q = (url.searchParams.get('q') || '').toLowerCase()
+        if (q) lines = lines.filter((l) => l.toLowerCase().includes(q))
+        sendJson(res, 200, { logs: lines.slice(-n), total: lines.length })
+      } else if (url.pathname === '/health') {
+        sendJson(res, 200, await getHealth())
+      } else if (url.pathname === '/env') {
+        sendJson(res, 200, getEnvInfo())
+      } else if (url.pathname === '/plugins') {
+        sendJson(res, 200, { plugins: getPlugins(), disabled: [...DISABLED_ENTRY_IDS] })
+      } else if (url.pathname === '/dashboard') {
+        try {
+          sendHtml(res, 200, readFileSync(DASHBOARD_FILE, 'utf8'))
+        } catch {
+          sendJson(res, 404, { error: `dashboard.html 不存在：${DASHBOARD_FILE}` })
+        }
+      } else if (url.pathname === '/') {
+        sendJson(res, 200, {
+          name: 'dsh-watchdog 控制台',
+          endpoints: ['/status', '/restart', '/reload', '/start', '/logs', '/health', '/env', '/plugins', '/dashboard'],
+        })
       } else {
-        sendJson(res, 404, { error: 'not found', endpoints: ['/status', '/restart', '/reload', '/logs'] })
+        sendJson(res, 404, { error: 'not found', endpoints: ['/status', '/restart', '/reload', '/start', '/logs', '/health', '/env', '/plugins', '/dashboard'] })
       }
     } catch (e) {
       sendJson(res, 500, { error: e.message })
@@ -305,7 +491,7 @@ function startControlServer() {
     log(`控制端口 ${CTRL_PORT} 异常: ${e.message}（继续守护，控制 API 不可用）`)
   })
   server.listen(CTRL_PORT, '127.0.0.1', () => {
-    log(`控制服务已启动: http://127.0.0.1:${CTRL_PORT} (/status /restart /reload /logs)`)
+    log(`控制服务已启动: http://127.0.0.1:${CTRL_PORT} (/status /restart /reload /start /logs /health /env /plugins /dashboard)`)
   })
 }
 
@@ -347,6 +533,14 @@ async function tick() {
 }
 
 async function main() {
+  // Single-instance guard: if another watchdog is already alive (per state pid),
+  // this instance exits immediately to avoid port races / duplicate monitors.
+  try {
+    const prev = JSON.parse(readFileSync(STATE_FILE, 'utf8'))
+    if (typeof prev.watchdogPid === 'number' && prev.watchdogPid > 0 && prev.watchdogPid !== process.pid) {
+      try { process.kill(prev.watchdogPid, 0); log(`另一个 watchdog 已在运行 (PID ${prev.watchdogPid})，本实例退出`); process.exit(0) } catch { /* stale pid */ }
+    }
+  } catch { /* no state */ }
   const loaded = loadState()
   if (!loaded || !loaded.launch) {
     log('no launch info in state file — cannot guard, exiting')
